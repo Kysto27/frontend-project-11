@@ -1,60 +1,83 @@
 import './style.scss';
 import 'bootstrap';
-import { object, string } from 'yup';
+import * as yup from 'yup';
 import onChange from 'on-change';
-import isEmpty from 'lodash/isEmpty.js';
 
-const validate = (form, fields, addedFeeds) => {
-  const schema = object({
-    url: string().notOneOf(addedFeeds).url().nullable(),
-  });
-  schema
-    .validate(fields, { abortEarly: false })
-    .then(() => {
-      console.log('[ok]');
-    })
-    .catch((error) => {
-      return error.inner;
-    });
+const validate = (url, addedFeeds) => {
+  const schema = yup.string()
+    .required()
+    .notOneOf(addedFeeds)
+    .url()
+    .nullable();
+  return schema.validate(url, { abortEarly: false });
 };
 
-const render = (form, initialState) => {
-  if (initialState.form.valid === false) {
-    console.log('Форма невалидна');
-  } else {
-    console.log('Форма валидна');
+const renderError = (errorMessage) => {
+  let errorText = '';
+  if (errorMessage === 'this must be a valid URL') {
+    errorText = 'Ссылка должна быть валидным URL';
+  } else if (
+    errorMessage.includes('this must not be one of the following values')
+  ) {
+    errorText = 'RSS уже существует';
+  }
+  return errorText;
+};
+
+const render = (state, elements, path, currentValue, previousValue) => {
+  const { form, input } = elements;
+  if (state.form.valid === false) {
+    input.classList.add('is-invalid');
+    const p = document.createElement('p');
+    p.textContent = renderError(state.form.errorMessage);
+    p.classList.add(
+      'feedback',
+      'm-0',
+      'position-absolute',
+      'small',
+      'text-success',
+      'text-danger',
+    );
+    form.append(p);
   }
 };
 
 const app = () => {
   const addedFeeds = [];
 
-  const form = document.querySelector('.rss-form');
+  const elements = {
+    form: document.querySelector('.rss-form'),
+    input: document.querySelector('#url-input'),
+  };
 
   const initialState = {
     form: {
       valid: true,
       processState: 'filling',
       processError: null,
-      errors: {},
-    },
-    fields: {
-      url: '',
+      errorMessage: null,
     },
   };
 
-  const state = onChange(initialState, render(form, initialState));
+  const watchedState = onChange(
+    initialState,
+    (path, currentValue, previousValue) => {
+      render(watchedState, elements, path, currentValue, previousValue);
+    },
+  );
 
-  form.addEventListener('submit', (e) => {
+  elements.form.addEventListener('submit', (e) => {
     e.preventDefault();
-    const formData = new FormData(form);
+    const formData = new FormData(elements.form);
     const value = formData.get('url');
-    console.log(value);
-    state.fields.url = value;
-    const errors = validate(state.form, state.fields, addedFeeds);
-    state.form.errors = errors;
-    state.form.valid = isEmpty(errors);
-    console.log(errors);
+    validate(value, addedFeeds)
+      .then(() => console.log('ok'))
+      .catch((error) => {
+        watchedState.form.errorMessage = error.message;
+        // this must not be one of the following values
+        // this must be a valid URL
+        watchedState.form.valid = false;
+      });
     addedFeeds.push(value);
   });
 };
