@@ -2,59 +2,26 @@ import './style.scss';
 import 'bootstrap';
 import * as yup from 'yup';
 import onChange from 'on-change';
+import i18next from 'i18next';
+import render from './view.js';
+import resources from './locales/index.js';
 
 const validate = (url, addedFeeds) => {
-  const schema = yup.string()
-    .required()
-    .notOneOf(addedFeeds)
-    .url()
+  const schema = yup.string().required().notOneOf(addedFeeds).url()
     .nullable();
   return schema.validate(url, { abortEarly: false });
 };
 
-const renderError = (errorMessage) => {
-  let errorText = '';
-  if (errorMessage === 'this must be a valid URL') {
-    errorText = 'Ссылка должна быть валидным URL';
-  } else if (
-    errorMessage.includes('this must not be one of the following values')
-  ) {
-    errorText = 'RSS уже существует';
-  }
-  return errorText;
-};
-
-const render = (state, elements, path, currentValue, previousValue) => {
-  const { input, feedback } = elements;
-  console.log(state.form.processState);
-  switch (state.form.processState) {
-    case 'filling': {
-      input.value = '';
-      input.focus();
-      break;
-    }
-    case 'filled': {
-      input.classList.remove('is-invalid');
-      feedback.classList.remove('text-danger');
-      feedback.classList.add('text-success');
-      feedback.textContent = 'RSS успешно загружен';
-      input.value = '';
-      input.focus();
-      break;
-    }
-    case 'validateError': {
-      input.classList.add('is-invalid');
-      feedback.textContent = renderError(state.form.errorMessage);
-      feedback.classList.remove('text-success');
-      feedback.classList.add('text-danger');
-      break;
-    }
-    default:
-      throw new Error(`Unknown state: ${state.form.processState}!`);
-  }
-};
-
 const app = () => {
+  const i18nextInstance = i18next.createInstance();
+  i18nextInstance
+    .init({
+      lng: 'ru',
+      debug: true,
+      resources,
+    })
+    .then(() => i18nextInstance);
+
   const elements = {
     form: document.querySelector('.rss-form'),
     input: document.querySelector('#url-input'),
@@ -63,7 +30,7 @@ const app = () => {
 
   const state = {
     form: {
-      processState: 'filling',
+      processState: 'start',
       errorMessage: null,
     },
     content: {
@@ -72,7 +39,14 @@ const app = () => {
   };
 
   const watchedState = onChange(state, (path, currentValue, previousValue) => {
-    render(watchedState, elements, path, currentValue, previousValue);
+    render(
+      watchedState,
+      elements,
+      path,
+      currentValue,
+      previousValue,
+      i18nextInstance,
+    );
   });
 
   elements.form.addEventListener('submit', (e) => {
